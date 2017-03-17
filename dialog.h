@@ -1,6 +1,9 @@
 #ifndef DIALOG_H
 #define DIALOG_H
 
+#include <QDateTime>
+#include <QElapsedTimer>
+#include <QTime>
 #include <QDialog>
 #include <ui_dialog.h>
 //#include "masterthread.h"
@@ -30,7 +33,7 @@ public:
 private slots:
     void transaction();
     void handleReadyRead();
-    void receivedData(double val);
+    void receivedData(double val, double oldData);
     void clearGraph();
 
 private:
@@ -39,18 +42,26 @@ private:
     volatile double lastSerialValue;
 
 signals:
-    void newData(double data);
+    void newData(double data, double oldData);
+    //void timeData(int data);
 
 private:
     QString portName;
-    QTimer dataTimer;
+    QTime dataTimer;
     QComboBox *serialPortComboBox;
     QPushButton *runButton;
     QPushButton *clearButton;
     QCustomPlot *customPlot;
     QLineEdit *lineEdit;
     QLineEdit *lineEdit2;
+    double previousValue = 0;
+    double startTime = 0;
+    double previousTime = 0;
+    double currentTime = 0;
+    double duration = 0;
+    bool jumped = false;
     bool connected = false;
+    double temp = 0;
 };
 
 #endif // DIALOG_H
