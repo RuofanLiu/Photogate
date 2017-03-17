@@ -1,5 +1,6 @@
 #include "dialog.h"
 
+#include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
 #include <QComboBox>
@@ -11,7 +12,6 @@
 #include <QtSerialPort/QSerialPort>
 #include <QTime>
 #include <QTextStream>
-#include <QTimer>
 #include <QCoreApplication>
 QT_USE_NAMESPACE
 
@@ -64,6 +64,8 @@ Dialog::Dialog(QWidget *parent)
 
 void Dialog::clearGraph(){
     customPlot->graph(0)->data()->clear();
+    lineEdit->setText("Airtime:");
+    lineEdit2->setText("Jump Height:");
 }
 
 void Dialog::transaction(){
@@ -88,18 +90,20 @@ void Dialog::transaction(){
 
 void Dialog::setControlsEnabled(bool enable){
     runButton->setText("Disconnect");
+
     connected = true;
     serialPortComboBox->setEnabled(enable);
 }
 
 
-void Dialog::receivedData(double val){
+void Dialog::receivedData(double val, double oldData){
     static QTime time(QTime::currentTime());
     double key = time.elapsed()/1000.0;
     static double lastPointKey = 0;
+    //QTextStream(stdout) << val - oldData << endl;
+
     if (key-lastPointKey > 0.002) // at most add point every 2 ms
     {
-        //QTextStream(stdout) << "HERE:" << val << endl;
         customPlot->graph(0)->addData(key, val);
         lastPointKey = key;
         customPlot->xAxis->setRange(key, 8, Qt::AlignRight);
@@ -113,19 +117,34 @@ void Dialog::receivedData(double val){
             frameCount = 0;
         }
     }
+    if(val - oldData > 100){
+        dataTimer.start();
+    }
+    if(oldData - val > 100){
+        duration = dataTimer.elapsed();
+        double height = 0.5 * 9.8 * qPow((duration/1000), 2);
+        lineEdit->setText("Airtime: " + QString::number(duration/1000));
+        lineEdit2->setText("Jump Height: " + QString::number(height));
+        //QTextStream(stdout) << duration/1000 << endl;
+    }
 }
 
 void Dialog::handleReadyRead(){
-    QString temp = serial.readAll();
+    QString temp;
+    temp = serial.readAll();
     serialBuffer.append(temp);
-    int serPos;
-    double tempValue;
+    bool ok = false;
+    int serPos = serialBuffer.indexOf('\n');
+    double currentValue = QString::fromLatin1(serialBuffer.left(serPos)).toDouble(&ok);
     while ((serPos = serialBuffer.indexOf('\n')) >= 0)
     {
-        bool ok;
-        tempValue = QString::fromLatin1(serialBuffer.left(serPos)).toDouble(&ok);
-        if (ok) emit newData(tempValue);
-        serialBuffer = serialBuffer.mid(serPos+1);
-    }
 
+        currentValue = QString::fromLatin1(serialBuffer.left(serPos)).toDouble(&ok);
+        if (ok){
+            emit newData(currentValue, previousValue);
+        }
+        previousValue = currentValue;
+        serialBuffer = serialBuffer.mid(serPos+1);
+        ok = false;
+    }
 }
